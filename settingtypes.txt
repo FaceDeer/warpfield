@@ -1,0 +1,11 @@
+warpfield_x_params (X coordinate warp field parameters) noise_params_3d 0, 500, (800, 800, 800), 33356, 1, 0.5, 2.0
+warpfield_y_params (Y coordinate warp field parameters) noise_params_3d 0, 100, (200, 200, 200), 33357, 1, 0.5, 2.0
+warpfield_z_params (Z coordinate warp field parameters) noise_params_3d 0, 500, (800, 800, 800), 33358, 1, 0.5, 2.0
+warpfield_trigger_uses (Number of uses before a warpfield trigger breaks - 0 for infinite) int 0 0 100000
+warpfield_cooldown (Cooldown time) int 10 0 100000
+
+[HUD properties]
+warpfield_hud_x (Relative X coordinate of HUD) float 0.5
+warpfield_hud_y (Relative Y coordinate of HUD) float 0.9
+warpfield_hud_color (Color string for HUD) string FFFF00
+warpfield_hud_color_stressed (Color string for HUD when maximally stressed) string FF0000

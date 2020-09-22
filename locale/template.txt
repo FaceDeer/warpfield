@@ -1,0 +1,15 @@
+# textdomain: warpfield
+
+
+
+### init.lua ###
+
+# The space at the beginning of this line is signifigant, it gets spliced onto the description of the anchorstone trigger when wear is enabled.
+ This tool can be used @1 times before breaking.=
+A triggering device that allows teleportation via warpfield.=
+Cooldown: @1s=
+Local warp field: @1=
+Warpfield Trigger=
+
+When triggered, this tool and its user will be displaced in accordance with the local warp field's displacement. Simply holding it makes it act as a compass of sorts, showing the current strength of the warp field.=
+
