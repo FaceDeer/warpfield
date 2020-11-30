@@ -260,3 +260,110 @@ end
 --		{"default:steel_ingot", "default:mese_crystal_fragment", "default:steel_ingot"}
 --	}
 --})
+
+local number_of_attempts_to_use = 100
+local precision = 0.1
+
+local find_minimum = function(pos, max_tries)
+	local last_jump = vector.new(pos)
+	for i = 1, max_tries do
+		local local_warp = get_warp_at(last_jump)
+		local new_jump = vector.add(last_jump, local_warp)
+		if vector.distance(new_jump, last_jump) < precision then
+			return last_jump, i, true
+		end
+		last_jump = new_jump
+	end
+	return last_jump, max_tries, false
+end
+
+minetest.register_chatcommand("find_warp_minimum", {
+	params = "[<pos>]",
+	description = S("locate the nearest warpfield minimum by following the field downhill from the provided location, or from the player's location if not provided."),
+	privs = {server=true},  -- Require the "privs" privilege to run
+	func = function(name, param)
+		local pos = nil
+		local param = minetest.string_to_pos(param)
+		if param then
+			pos = param
+		else
+			local player = minetest.get_player_by_name(name)
+			pos = player:get_pos()
+		end
+	
+		local minimum, tries, success = find_minimum(pos, number_of_attempts_to_use)
+		if success then
+			minetest.chat_send_player(name, S("Minimum located at @1 after @2 jumps", minetest.pos_to_string(vector.round(minimum)), tries))
+		else
+			minetest.chat_send_player(name, S("Stopped testing for minima at @1 after @2 jumps.", minetest.pos_to_string(vector.round(minimum)), tries))
+		end
+	end,
+})
+
+minetest.register_chatcommand("find_warp_minima", {
+	params = "<minpos> <maxpos> <step_size> [<rounded_to_nearest>]",
+	description = S("Find all warp minima accessible from within the given volume, starting from test points separated by step_size."),
+	privs = {server=true},
+	func = function(name, param)
+		local p1, p2, step_size, round_to_nearest
+		local args = param:split(" ")
+		if #args == 3 or #args == 4 then
+			p1 = minetest.string_to_pos(args[1])
+			p2 = minetest.string_to_pos(args[2])
+			step_size = tonumber(args[3])
+			round_to_nearest = 1
+			if #args == 4 then
+				round_to_nearest = tonumber(args[4]) or 1
+			end
+		end
+		if p1 == nil or p2 == nil or step_size == nil then
+			minetest.chat_send_player(name, S('Incorrect argument format. Expected: "(x1,y1,z1) (x2,y2,z2) number [number]"'))
+			return
+		end
+		
+		local minima_hashes = {}
+		local failures = 0
+		local successes = 0
+		for x = math.min(p1.x, p2.x), math.max(p1.x, p2.x), math.abs(step_size) do
+			for y = math.min(p1.y, p2.y), math.max(p1.y, p2.y), math.abs(step_size) do
+				for z = math.min(p1.z, p2.z), math.max(p1.z, p2.z), math.abs(step_size) do
+					local minimum, tries, success = find_minimum({x=x,y=y,z=z}, number_of_attempts_to_use)
+					if success then
+						successes = successes + 1
+						minima_hashes[minetest.hash_node_position(vector.round(vector.divide(minimum, round_to_nearest)))] = true
+					else
+						failures = failures + 1
+					end
+					local total = successes + failures
+					if total % 1000 == 0 then
+						minetest.chat_send_player(name, S("Tested @1 starting points...", total))
+					end
+				end
+			end
+		end
+		minetest.chat_send_player(name, S("With @1 successful runs and @2 failed runs found the following minima (rounded to @3m):", successes, failures, round_to_nearest))
+		local sorted_minima = {}
+		for hash, _ in pairs(minima_hashes) do
+			table.insert(sorted_minima, vector.multiply(minetest.get_position_from_hash(hash), round_to_nearest))
+		end
+		table.sort(sorted_minima, function(p1, p2)
+			if p1.x < p2.x then
+				return true
+			elseif p1.x > p2.x then
+				return false
+			elseif p1.y < p2.y then
+				return true
+			elseif p1.y > p2.y then
+				return false
+			elseif p1.z < p2.z then
+				return true
+			elseif p1.z > p2.z then
+				return false
+			end
+			return false
+		end)
+		for _, pos in ipairs(sorted_minima) do
+			minetest.chat_send_player(name, minetest.pos_to_string(pos))
+		end
+	end,
+})
