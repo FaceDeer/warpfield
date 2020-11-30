@@ -8,8 +8,24 @@
  This tool can be used @1 times before breaking.=
 A triggering device that allows teleportation via warpfield.=
 Cooldown: @1s=
+
+Find all warp maxima accessible from within the given volume, starting from test points separated by step_size. These are places that are difficult or impossible to reach by warpfield teleport.=
+
+Find all warp minima accessible from within the given volume, starting from test points separated by step_size. These are locations that players who repeatedly teleport will eventually wind up.=
+
+Incorrect argument format. Expected: "(x1,y1,z1) (x2,y2,z2) number [number]"=
+
 Local warp field: @1=
+Minimum located at @1 after @2 jumps=
+Stopped testing for minima at @1 after @2 jumps.=
+Tested @1 starting points...=
 Warpfield Trigger=
 
 When triggered, this tool and its user will be displaced in accordance with the local warp field's displacement. Simply holding it makes it act as a compass of sorts, showing the current strength of the warp field.=
+
+With @1 successful and @2 failed runs found the following maxima (rounded to @3m):=
+
+With @1 successful and @2 failed runs found the following minima (rounded to @3m):=
+
+locate the nearest warpfield minimum by following the field downhill from the provided location, or from the player's location if not provided. This is where a player starting at that position will eventually wind up if they repeatedly travel by warp, not counting any falls along the way.=
 

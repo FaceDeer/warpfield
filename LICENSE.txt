@@ -1,5 +1,7 @@
 Sounds and textures are under various licenses, see the license.txt file in the corresponding directory for details.
 
+"screenshot.png" is from https://commons.wikimedia.org/wiki/File:OPENSCAD_SurfaceData_heightmap.png by RoCMP, released under the Creative Commons Attribution-Share Alike 4.0 International license. 
+
 License for Code
 -----------------------------
 

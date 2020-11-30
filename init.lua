@@ -2,7 +2,6 @@ warpfield = {}
 
 local S = minetest.get_translator()
 
-local warpfield_trigger_breaks_sound = "default_tool_breaks"
 local warpfield_trigger_uses = tonumber(minetest.settings:get("warpfield_trigger_uses")) or 0
 local warpfield_trigger_cooldown = tonumber(minetest.settings:get("warpfield_cooldown")) or 10
 
@@ -120,7 +119,7 @@ local trigger_def = {
 	stack_max = trigger_stack_size,
 	tool_capabilites = trigger_tool_capabilities,
 	sound = {
-		breaks = warpfield_trigger_breaks_sound,
+		breaks = "warpfield_trigger_break",
 	},
 	on_use = function(itemstack, user, pointed_thing)
 	
@@ -252,23 +251,22 @@ else
 	minetest.register_craftitem("warpfield:trigger", trigger_def)
 end
 
---minetest.register_craft({
---	output = "warpfield:trigger",
---	recipe = {
---		{"default:steel_ingot", "default:mese_crystal_fragment", "default:steel_ingot"},
---		{"default:mese_crystal_fragment", warpfield_displaced_name, "default:mese_crystal_fragment"},
---		{"default:steel_ingot", "default:mese_crystal_fragment", "default:steel_ingot"}
---	}
---})
-
 local number_of_attempts_to_use = 100
 local precision = 0.1
 
-local find_minimum = function(pos, max_tries)
+local find_minimum = function(pos, max_tries, direction)
+	direction = direction or 1
+	local dir_func
+	if direction > 0 then
+		dir_func = vector.add
+	else
+		dir_func = vector.subtract
+	end
+	
 	local last_jump = vector.new(pos)
 	for i = 1, max_tries do
 		local local_warp = get_warp_at(last_jump)
-		local new_jump = vector.add(last_jump, local_warp)
+		local new_jump = dir_func(last_jump, local_warp)
 		if vector.distance(new_jump, last_jump) < precision then
 			return last_jump, i, true
 		end
@@ -279,7 +277,7 @@ end
 
 minetest.register_chatcommand("find_warp_minimum", {
 	params = "[<pos>]",
-	description = S("locate the nearest warpfield minimum by following the field downhill from the provided location, or from the player's location if not provided."),
+	description = S("locate the nearest warpfield minimum by following the field downhill from the provided location, or from the player's location if not provided. This is where a player starting at that position will eventually wind up if they repeatedly travel by warp, not counting any falls along the way."),
 	privs = {server=true},  -- Require the "privs" privilege to run
 	func = function(name, param)
 		local pos = nil
@@ -300,70 +298,99 @@ minetest.register_chatcommand("find_warp_minimum", {
 	end,
 })
 
-minetest.register_chatcommand("find_warp_minima", {
-	params = "<minpos> <maxpos> <step_size> [<rounded_to_nearest>]",
-	description = S("Find all warp minima accessible from within the given volume, starting from test points separated by step_size."),
-	privs = {server=true},
-	func = function(name, param)
-		local p1, p2, step_size, round_to_nearest
-		local args = param:split(" ")
-		if #args == 3 or #args == 4 then
-			p1 = minetest.string_to_pos(args[1])
-			p2 = minetest.string_to_pos(args[2])
-			step_size = tonumber(args[3])
-			round_to_nearest = 1
-			if #args == 4 then
-				round_to_nearest = tonumber(args[4]) or 1
-			end
+local follow_field_array = function(name, param, direction)
+	local p1, p2, step_size, round_to_nearest
+	local args = param:split(" ")
+	if #args == 3 or #args == 4 then
+		p1 = minetest.string_to_pos(args[1])
+		p2 = minetest.string_to_pos(args[2])
+		step_size = tonumber(args[3])
+		round_to_nearest = 1
+		if #args == 4 then
+			round_to_nearest = tonumber(args[4]) or 1
 		end
-		if p1 == nil or p2 == nil or step_size == nil then
-			minetest.chat_send_player(name, S('Incorrect argument format. Expected: "(x1,y1,z1) (x2,y2,z2) number [number]"'))
-			return
-		end
-		
-		local minima_hashes = {}
-		local failures = 0
-		local successes = 0
-		for x = math.min(p1.x, p2.x), math.max(p1.x, p2.x), math.abs(step_size) do
-			for y = math.min(p1.y, p2.y), math.max(p1.y, p2.y), math.abs(step_size) do
-				for z = math.min(p1.z, p2.z), math.max(p1.z, p2.z), math.abs(step_size) do
-					local minimum, tries, success = find_minimum({x=x,y=y,z=z}, number_of_attempts_to_use)
-					if success then
-						successes = successes + 1
-						minima_hashes[minetest.hash_node_position(vector.round(vector.divide(minimum, round_to_nearest)))] = true
-					else
-						failures = failures + 1
-					end
-					local total = successes + failures
-					if total % 1000 == 0 then
-						minetest.chat_send_player(name, S("Tested @1 starting points...", total))
-					end
+	end
+	if p1 == nil or p2 == nil or step_size == nil then
+		minetest.chat_send_player(name, S('Incorrect argument format. Expected: "(x1,y1,z1) (x2,y2,z2) number [number]"'))
+		return
+	end
+	
+	local minima_hashes = {}
+	local failures = 0
+	local successes = 0
+	for x = math.min(p1.x, p2.x), math.max(p1.x, p2.x), math.abs(step_size) do
+		for y = math.min(p1.y, p2.y), math.max(p1.y, p2.y), math.abs(step_size) do
+			for z = math.min(p1.z, p2.z), math.max(p1.z, p2.z), math.abs(step_size) do
+				local minimum, tries, success = find_minimum({x=x,y=y,z=z}, number_of_attempts_to_use, direction)
+				if success then
+					successes = successes + 1
+					minima_hashes[minetest.hash_node_position(vector.round(vector.divide(minimum, round_to_nearest)))] = true
+				else
+					failures = failures + 1
+				end
+				local total = successes + failures
+				if total % 1000 == 0 then
+					minetest.chat_send_player(name, S("Tested @1 starting points...", total))
 				end
 			end
 		end
-		minetest.chat_send_player(name, S("With @1 successful runs and @2 failed runs found the following minima (rounded to @3m):", successes, failures, round_to_nearest))
-		local sorted_minima = {}
-		for hash, _ in pairs(minima_hashes) do
-			table.insert(sorted_minima, vector.multiply(minetest.get_position_from_hash(hash), round_to_nearest))
-		end
-		table.sort(sorted_minima, function(p1, p2)
-			if p1.x < p2.x then
-				return true
-			elseif p1.x > p2.x then
-				return false
-			elseif p1.y < p2.y then
-				return true
-			elseif p1.y > p2.y then
-				return false
-			elseif p1.z < p2.z then
-				return true
-			elseif p1.z > p2.z then
-				return false
-			end
+	end
+	local sorted_minima = {}
+	for hash, _ in pairs(minima_hashes) do
+		table.insert(sorted_minima, vector.multiply(minetest.get_position_from_hash(hash), round_to_nearest))
+	end
+	table.sort(sorted_minima, function(p1, p2)
+		if p1.x < p2.x then
+			return true
+		elseif p1.x > p2.x then
 			return false
-		end)
+		elseif p1.y < p2.y then
+			return true
+		elseif p1.y > p2.y then
+			return false
+		elseif p1.z < p2.z then
+			return true
+		elseif p1.z > p2.z then
+			return false
+		end
+		return false
+	end)
+	return successes, failures, round_to_nearest, sorted_minima
+end
+
+minetest.register_chatcommand("find_warp_minima", {
+	params = "<minpos> <maxpos> <step_size> [<rounded_to_nearest>]",
+	description = S("Find all warp minima accessible from within the given volume, starting from test points separated by step_size. These are locations that players who repeatedly teleport will eventually wind up."),
+	privs = {server=true},
+	func = function(name, param)
+		local successes, failures, round_to_nearest, sorted_minima = follow_field_array(name, param, 1)
+		minetest.chat_send_player(name, S("With @1 successful and @2 failed runs found the following minima (rounded to @3m):", successes, failures, round_to_nearest))
 		for _, pos in ipairs(sorted_minima) do
 			minetest.chat_send_player(name, minetest.pos_to_string(pos))
 		end
 	end,
 })
+
+minetest.register_chatcommand("find_warp_maxima", {
+	params = "<minpos> <maxpos> <step_size> [<rounded_to_nearest>]",
+	description = S("Find all warp maxima accessible from within the given volume, starting from test points separated by step_size. These are places that are difficult or impossible to reach by warpfield teleport."),
+	privs = {server=true},
+	func = function(name, param)
+		local successes, failures, round_to_nearest, sorted_minima = follow_field_array(name, param, -1)
+		minetest.chat_send_player(name, S("With @1 successful and @2 failed runs found the following maxima (rounded to @3m):", successes, failures, round_to_nearest))
+		for _, pos in ipairs(sorted_minima) do
+			minetest.chat_send_player(name, minetest.pos_to_string(pos))
+		end
+	end,
+})
+
+if minetest.get_modpath("default") then
+	minetest.register_craft({
+		output = "warpfield:trigger",
+		recipe = {
+			{"default:steel_ingot", "default:mese_crystal_fragment", "default:steel_ingot"},
+			{"default:mese_crystal_fragment", "default:mese_crystal_fragment", "default:mese_crystal_fragment"},
+			{"default:steel_ingot", "default:mese_crystal_fragment", "default:steel_ingot"}
+		}
+	})
+end
